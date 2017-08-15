@@ -97,15 +97,19 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
         return credential
     }
 
-    fun read(spreadsheetId: String, tabName: String, range: String): List<List<Any>> {
+    fun read(spreadsheetId: String, tabName: String, range: String): List<List<Any?>> {
         return sheetsService.spreadsheets().values()
                 .get(spreadsheetId, tabName + "!" + range)
                 .execute().getValues() ?: listOf()
     }
 
-    fun read(spreadsheetId: String, tabName: String, rowIndex: Int): List<List<Any>> {
+    fun read(spreadsheetId: String, tabName: String, rowIndex: Int): List<Any?> {
         checkRowIndex(rowIndex)
-        return read(spreadsheetId, tabName, "A$rowIndex:O$rowIndex")
+        return read(spreadsheetId, tabName, "A$rowIndex:O$rowIndex").first()
+    }
+
+    fun <T> read(spreadsheetId: String, tabName: String, rowIndex: Int, rangeReadMapper: RangeReadMapper<T>): T {
+        return rangeReadMapper.apply(read(spreadsheetId, tabName, rowIndex))
     }
 
     fun <T> read(spreadsheetId: String, tabName: String, rangeReadMapper: RangeReadMapper<T>): List<T> {
@@ -113,7 +117,7 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
         return values.map { rangeReadMapper.apply(it) }
     }
 
-    fun update(spreadsheetId: String, tabName: String, range: String, values: List<List<Any>>) {
+    fun update(spreadsheetId: String, tabName: String, range: String, values: List<List<Any?>>) {
         val body = ValueRange()
                 .setValues(values)
         sheetsService.spreadsheets().values().update(spreadsheetId, tabName + "!" + range, body)
@@ -121,19 +125,23 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
                 .execute()
     }
 
-    fun update(spreadsheetId: String, tabName: String, rowIndex: Int, values: List<List<Any>>) {
+    fun update(spreadsheetId: String, tabName: String, rowIndex: Int, values: List<Any?>) {
         checkRowIndex(rowIndex)
-        return update(spreadsheetId, tabName, "A$rowIndex:O$rowIndex", values)
+        update(spreadsheetId, tabName, "A$rowIndex:O$rowIndex", listOf(values))
+    }
+
+    fun <T> update(spreadsheetId: String, tabName: String, rowIndex: Int, rangeReadMapper: RangeWriteMapper<T>, value: T) {
+        update(spreadsheetId, tabName, rowIndex, rangeReadMapper.apply(value))
     }
 
     fun <T> update(spreadsheetId: String, tabName: String, rangeReadMapper: RangeWriteMapper<T>, values: List<T>) {
         update(spreadsheetId, tabName, rangeReadMapper.getRange(), values.map { rangeReadMapper.apply(it) })
     }
 
-    fun readAll(spreadsheetId: String, tabName: String): Iterator<List<Any>> {
+    fun readAll(spreadsheetId: String, tabName: String): Iterator<List<Any?>> {
 
-        return object: Iterator<List<Any>> {
-            var values: List<Any> = listOf()
+        return object: Iterator<List<Any?>> {
+            var values: List<Any?> = listOf()
             var rowIndex: Int = 1
 
             override fun hasNext(): Boolean {
@@ -141,7 +149,7 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
                 return !values.isEmpty()
             }
 
-            override fun next(): List<Any> {
+            override fun next(): List<Any?> {
                 return values
             }
         }
