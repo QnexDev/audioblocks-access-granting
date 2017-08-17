@@ -5,21 +5,25 @@ import com.qnex.audioblocks.access.model.PartnerAccessProvidingConfig
 import com.qnex.audioblocks.access.model.PartnerInfo
 import com.qnex.audioblocks.access.sheet.GoogleSheetProvider
 import com.qnex.audioblocks.access.sheet.RangeWriteMapper
+import java.text.SimpleDateFormat
+import java.util.*
 
-class PartnerAccessProvidingService(val config: PartnerAccessProvidingConfig,
-                                    val googleSheetProvider: GoogleSheetProvider,
-                                    val audioblocksClient: AudioblocksAccessProvidingClient) {
+class PartnerAccessProvidingService(private val config: PartnerAccessProvidingConfig,
+                                    private val googleSheetProvider: GoogleSheetProvider,
+                                    private val audioblocksClient: AudioblocksAccessProvidingClient,
+                                    private val datePattern:String = "dd.MM.yyyy") {
+
+    private val simpleDateFormat = SimpleDateFormat(datePattern)
 
     fun provideAccess(index: Int, partnerInfo: PartnerInfo) {
-        audioblocksClient.sendEmail()
+        audioblocksClient.sendEmail(partnerInfo)
 
-        googleSheetProvider.update(config.spreadsheetId, config.spreadsheetTabName, index, object : RangeWriteMapper<PartnerInfo> {
+        googleSheetProvider.update(config.spreadsheetId, config.spreadsheetTabName, index, object : RangeWriteMapper<String> {
 
-            override fun apply(value: PartnerInfo): List<Any?> {
-                return listOf(value.email, value.lastName, value.name)
+            override fun apply(value: String): List<Any?> {
+                return listOf(null, null, null, value)
             }
 
-        }, partnerInfo)
-
+        }, simpleDateFormat.format(Date()))
     }
 }
