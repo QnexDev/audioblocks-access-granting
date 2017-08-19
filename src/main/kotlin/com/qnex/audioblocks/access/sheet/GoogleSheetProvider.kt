@@ -130,7 +130,8 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
         update(spreadsheetId, tabName, "A$rowIndex:O$rowIndex", listOf(values))
     }
 
-    fun <T> update(spreadsheetId: String, tabName: String, rowIndex: Int, rangeReadMapper: RangeWriteMapper<T>, value: T) {
+    fun <T> update(spreadsheetId: String, tabName: String, rowIndex: Int,
+                   rangeReadMapper: RangeWriteMapper<T>, value: T) {
         update(spreadsheetId, tabName, rowIndex, rangeReadMapper.apply(value))
     }
 
@@ -138,35 +139,86 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
         update(spreadsheetId, tabName, rangeReadMapper.getRange(), values.map { rangeReadMapper.apply(it) })
     }
 
-    fun readAll(spreadsheetId: String, tabName: String): Iterator<List<Any?>> {
+    fun readAll(spreadsheetId: String, tabName: String,
+                filter: IndexedReadFilter<List<Any?>>): IndexedIterator<List<Any?>> {
 
-        return object: Iterator<List<Any?>> {
+        return object : IndexedIterator<List<Any?>> {
+
+            override fun incIndex() {
+                rowIndex++
+            }
+
             var values: List<Any?> = listOf()
-            var rowIndex: Int = 1
 
+            var rowIndex: Int = 1
             override fun hasNext(): Boolean {
-                values = read(spreadsheetId, tabName, rowIndex++)
-                return !values.isEmpty()
+                var run = false
+                do {
+                    run = !filter.preReadApply(rowIndex)
+                    if (run) {
+                        rowIndex++
+                        continue
+                    }
+                    values = read(spreadsheetId, tabName, rowIndex)
+                    if (values.isEmpty()) {
+                        return false
+                    }
+                    run = !filter.postReadApply(rowIndex, values)
+                } while (run)
+                return true
             }
 
             override fun next(): List<Any?> {
+                rowIndex++
                 return values
+            }
+
+            override fun index(): Int {
+                return rowIndex
             }
         }
     }
 
-    fun <T> readAll(spreadsheetId: String, tabName: String, rangeReadMapper: RangeReadMapper<T>): Iterator<T> {
+    fun <T> readAll(spreadsheetId: String, tabName: String, filter: IndexedReadFilter<T>,
+                    rangeReadMapper: RangeReadMapper<T>): IndexedIterator<T> {
 
-        val innerIterator = readAll(spreadsheetId, tabName)
 
-        return object: Iterator<T> {
-            override fun hasNext(): Boolean {
-                return innerIterator.hasNext()
+        val innerIterator = readAll(spreadsheetId, tabName, object: IndexedReadFilter<List<Any?>> {})
+
+        return object : IndexedIterator<T> {
+
+            override fun incIndex() {
+                innerIterator.incIndex()
             }
 
+            var mapped: T? = null
+
+            override fun hasNext(): Boolean {
+                var result = false
+                do {
+                    result = !filter.preReadApply(index())
+                    if (result)  {
+                        incIndex()
+                        continue
+                    }
+                    if (!innerIterator.hasNext()) {
+                        return false
+                    }
+                    mapped = rangeReadMapper.apply(innerIterator.next())
+
+                    result = !filter.postReadApply(index(), mapped!!)
+                } while (result)
+
+                return true
+            }
+
+
             override fun next(): T {
-                val value = innerIterator.next()
-                return rangeReadMapper.apply(value)
+               return mapped!!
+            }
+
+            override fun index(): Int {
+                return innerIterator.index()
             }
         }
     }
@@ -175,6 +227,23 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
         if (rowIndex < 1) {
             throw IllegalArgumentException("Row index must be great than 0")
         }
+    }
+
+    interface IndexedReadFilter<T> {
+
+        fun preReadApply(index: Int): Boolean {
+            return true
+        }
+
+        fun postReadApply(index: Int, model: T): Boolean {
+            return true
+        }
+    }
+
+    interface IndexedIterator<T>: Iterator<T> {
+        fun index(): Int
+
+        fun incIndex()
     }
 
 

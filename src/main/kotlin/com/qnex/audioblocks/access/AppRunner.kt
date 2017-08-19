@@ -31,7 +31,9 @@ object AppRunner {
 
     @JvmStatic fun main(args: Array<String>) {
 
-        InputArgumentParser(buildArgsDefinitions()).parse(args, {
+        val inputArgumentParser = InputArgumentParser(buildArgsDefinitions())
+
+        val runConfig = inputArgumentParser.parse(args, {
             RunConfig(
                     it["audiobloksLoginName"]!!,
                     it["audiobloksPassword"]!!,
@@ -44,12 +46,7 @@ object AppRunner {
                     it["adminName"]!!)
         })
 
-        val clientSecretFilePath = "/home/qnex/audioblocks-access-granting/src/main/resources/client_secret.json"
-
-        AppRunner.run(RunConfig(
-                "admin@air.com", "Footage123!", clientSecretFilePath,
-                10, 20,
-                "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", "Class Data","dd.MM.yyyy", "Рома Шинкаренко"))
+        AppRunner.run(runConfig)
     }
 
     @JvmStatic fun run(runConfig: RunConfig) {
@@ -69,23 +66,36 @@ object AppRunner {
             val providingService =
                     PartnerAccessProvidingService(accessProvidingConfig, googleSheetProvider, audioblocksClient, runConfig.datePattern)
 
-            googleSheetProvider.readAll(spreadsheetId, spreadsheetTabName, object : RangeReadMapper<ParsedRowData> {
+            googleSheetProvider.readAll(spreadsheetId, spreadsheetTabName,
+                    filter = object : GoogleSheetProvider.IndexedReadFilter<ParsedRowData> {
 
-                override fun apply(values: List<Any?>): ParsedRowData {
-                    val accessDateRaw = values[3] as String?
-                    val accessDate = if (accessDateRaw != null) dateFormat.parse(accessDateRaw) else null
-                    return ParsedRowData(PartnerInfo(values[0] as String, values[1] as String, values[2] as String,
-                            accessDate), values[4] as String)
-                }
+                        override fun preReadApply(index: Int): Boolean {
+                           return index > 1
+                        }
 
-            }).asSequence()
-                    .filter { it.adminName == runConfig.adminName }
-                    .filter { it.partnerInfo.accessDate == null }
+                        override fun postReadApply(index: Int, model: ParsedRowData): Boolean {
+                            println("Index: $index, model: $model")
+                            return model.adminName == runConfig.adminName && model.partnerInfo.accessDate == null
+                                    && model.partnerInfo.invitationDate != null
+                        }
+                    },
+
+                    rangeReadMapper = object: RangeReadMapper<ParsedRowData> {
+                        override fun apply(values: List<Any?>): ParsedRowData {
+                            return ParsedRowData(PartnerInfo(values[1] as String, values[2] as String, values[0] as String,
+                                    parseDate(values[4]), parseDate(values[5])), values[3] as String)
+                        }
+
+                        private fun parseDate(value:Any?): Date? {
+                            val accessDateRaw =  value as String?
+                            val accessDate = if (accessDateRaw != "") dateFormat.parse(accessDateRaw) else null
+                            return accessDate
+                        }
+                    })
+
+                    .asSequence()
                     .forEachIndexed { index, (partnerInfo) ->
                         run {
-                            if (index == 1) {
-                                return
-                            }
                             providingService.provideAccess(index, partnerInfo)
                             pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
                         }
