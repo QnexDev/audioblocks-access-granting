@@ -50,12 +50,15 @@ class InputArgumentParser(private val argsDefinitions: List<Definition>) {
     }
 
     fun getArgumentsDescription(): String {
+        var i = 1
         return fullDefinitions.values.joinToString(" ",
-                transform = { (shortArgName, fullArgName) -> buildArgumentDescription(shortArgName, fullArgName) })
+                transform = { (shortArgName, fullArgName) ->
+                    buildArgumentDescription(shortArgName, fullArgName, i++)
+                })
     }
 
-    private fun buildArgumentDescription(shortArgName: String, fullArgName: String): String {
-        return "[-$shortArgName $fullArgName]"
+    private fun buildArgumentDescription(shortArgName: String, fullArgName: String, i: Int): String {
+        return "[-$shortArgName $fullArgName]" + if (i % 3 == 0) "\n" else ""
     }
 
     private fun checkArgNamesDuplication(fullNameMap: Map<String, Definition>, shortNameMap: Map<String, Definition>) {
