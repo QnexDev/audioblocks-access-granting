@@ -3,11 +3,13 @@ package com.qnex.audioblocks.access
 import com.qnex.audioblocks.access.client.AudioblocksAccessProvidingClient
 import com.qnex.audioblocks.access.model.PartnerAccessProvidingConfig
 import com.qnex.audioblocks.access.model.PartnerInfo
+import com.qnex.audioblocks.access.model.ParsedRowData
 import com.qnex.audioblocks.access.model.RunConfig
 import com.qnex.audioblocks.access.sheet.GoogleSheetProvider
 import com.qnex.audioblocks.access.sheet.RangeReadMapper
 import org.apache.http.impl.client.HttpClients
 import java.nio.file.Paths
+import java.text.SimpleDateFormat
 import java.util.*
 
 
@@ -23,6 +25,7 @@ object AppRunner {
                 InputArgumentParser.Definition("pt", "pauseTimeTo"),
                 InputArgumentParser.Definition("si", "spreadsheetId"),
                 InputArgumentParser.Definition("st", "spreadsheetTabName"),
+                InputArgumentParser.Definition("a", "adminName"),
                 InputArgumentParser.Definition("dp", "datePattern"))
     }
 
@@ -37,7 +40,8 @@ object AppRunner {
                     Integer.parseInt(it["pauseTimeTo"]!!),
                     it["spreadsheetId"]!!,
                     it["spreadsheetTabName"]!!,
-                    it["datePattern"]!!)
+                    it["datePattern"]!!,
+                    it["adminName"]!!)
         })
 
         val clientSecretFilePath = "/home/qnex/audioblocks-access-granting/src/main/resources/client_secret.json"
@@ -45,13 +49,14 @@ object AppRunner {
         AppRunner.run(RunConfig(
                 "admin@air.com", "Footage123!", clientSecretFilePath,
                 10, 20,
-                "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", "Class Data","dd.MM.yyyy"))
+                "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", "Class Data","dd.MM.yyyy", "Рома Шинкаренко"))
     }
 
     @JvmStatic fun run(runConfig: RunConfig) {
         val random = Random()
         val spreadsheetId = runConfig.spreadsheetId
         val spreadsheetTabName = runConfig.spreadsheetTabName
+        val dateFormat = SimpleDateFormat(runConfig.datePattern)
 
         val googleSheetProvider = GoogleSheetProvider(Paths.get(runConfig.clientSecretFilePath))
 
@@ -64,22 +69,26 @@ object AppRunner {
             val providingService =
                     PartnerAccessProvidingService(accessProvidingConfig, googleSheetProvider, audioblocksClient, runConfig.datePattern)
 
-            var index = 1
+            googleSheetProvider.readAll(spreadsheetId, spreadsheetTabName, object : RangeReadMapper<ParsedRowData> {
 
-            googleSheetProvider.readAll(spreadsheetId, spreadsheetTabName, object : RangeReadMapper<Pair<PartnerInfo, String>> {
-
-                override fun apply(values: List<Any?>): Pair<PartnerInfo, String> {
-                    return Pair(PartnerInfo(values[0] as String, values[1] as String, values[2] as String), values[4] as String)
+                override fun apply(values: List<Any?>): ParsedRowData {
+                    val accessDateRaw = values[3] as String?
+                    val accessDate = if (accessDateRaw != null) dateFormat.parse(accessDateRaw) else null
+                    return ParsedRowData(PartnerInfo(values[0] as String, values[1] as String, values[2] as String,
+                            accessDate), values[4] as String)
                 }
 
             }).asSequence()
-                    .filter { index == 1 }
-                    .filter { it.second == "???" }
-                    .forEach {
-                        providingService.provideAccess(index, it.first)
-                        index++
-
-                        pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
+                    .filter { it.adminName == runConfig.adminName }
+                    .filter { it.partnerInfo.accessDate == null }
+                    .forEachIndexed { index, (partnerInfo) ->
+                        run {
+                            if (index == 1) {
+                                return
+                            }
+                            providingService.provideAccess(index, partnerInfo)
+                            pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
+                        }
                     }
         }
 

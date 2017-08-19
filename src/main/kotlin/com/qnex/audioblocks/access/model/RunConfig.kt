@@ -8,4 +8,5 @@ data class RunConfig(
         val pauseTimeTo: Int,
         val spreadsheetId: String,
         val spreadsheetTabName: String,
-        val datePattern: String)
+        val datePattern: String,
+        val adminName: String)

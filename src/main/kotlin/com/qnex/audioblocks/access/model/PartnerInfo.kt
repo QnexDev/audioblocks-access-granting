@@ -1,3 +1,7 @@
 package com.qnex.audioblocks.access.model
 
-data class PartnerInfo(val name: String, val lastName: String, val email: String)
+import java.util.*
+
+
+
+data class PartnerInfo(val name: String, val lastName: String, val email: String, val accessDate: Date?)

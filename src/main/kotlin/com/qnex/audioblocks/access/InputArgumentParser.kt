@@ -5,23 +5,13 @@ class InputArgumentParser(private val argsDefinitions: List<Definition>) {
     val fullDefinitions = buildFullDefinitions()
 
     private fun buildFullDefinitions(): Map<String, Definition> {
-        val fullNameMap = argsDefinitions.map { it.fullArgName to it }.toMap()
-        val shortNameMap = argsDefinitions.map { it.shortArgName to it }.toMap()
-        if (fullNameMap.size < argsDefinitions.size || shortNameMap.size < argsDefinitions.size) {
-            throw IllegalArgumentException("The argument definitions has duplicated elements")
-        }
-
-        val fullAndShortNamesMap = hashMapOf<String, Definition>()
-        fullAndShortNamesMap.putAll(fullNameMap)
-        fullAndShortNamesMap.putAll(shortNameMap)
-
-        if (fullAndShortNamesMap.size < argsDefinitions.size * 2) {
-            throw IllegalArgumentException("The argument definitions has duplicated elements")
-        }
-
-        return fullAndShortNamesMap
+        val fullNameMap = argsDefinitions.associateByTo(mutableMapOf(), { d -> d.fullArgName })
+        val shortNameMap = argsDefinitions.associateByTo(mutableMapOf(), { (shortArgName) -> shortArgName })
+        checkArgNamesDuplication(fullNameMap, shortNameMap)
+        fullNameMap += shortNameMap
+        checkArgNamesDuplication(fullNameMap)
+        return fullNameMap
     }
-
 
     fun parse(inputArgs: Array<String>): Map<String, String> {
         if (inputArgs.isEmpty()) {
@@ -61,7 +51,23 @@ class InputArgumentParser(private val argsDefinitions: List<Definition>) {
 
     fun getArgumentsDescription(): String {
         return fullDefinitions.values.joinToString(" ",
-                transform = { (shortArgName, fullArgName) ->  "[-$shortArgName $fullArgName]"})
+                transform = { (shortArgName, fullArgName) -> buildArgumentDescription(shortArgName, fullArgName) })
+    }
+
+    private fun buildArgumentDescription(shortArgName: String, fullArgName: String): String {
+        return "[-$shortArgName $fullArgName]"
+    }
+
+    private fun checkArgNamesDuplication(fullNameMap: Map<String, Definition>, shortNameMap: Map<String, Definition>) {
+        if (fullNameMap.size < argsDefinitions.size || shortNameMap.size < argsDefinitions.size) {
+            throw IllegalArgumentException("The argument definitions has duplicated elements")
+        }
+    }
+
+    private fun checkArgNamesDuplication(fullAndShortNamesMap: Map<String, Definition>) {
+        if (fullAndShortNamesMap.size < argsDefinitions.size * 2) {
+            throw IllegalArgumentException("The argument definitions has duplicated elements")
+        }
     }
 
     data class Definition(val shortArgName: String, val fullArgName: String, val description: String = "")
