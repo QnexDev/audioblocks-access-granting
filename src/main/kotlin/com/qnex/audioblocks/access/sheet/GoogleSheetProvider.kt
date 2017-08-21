@@ -17,6 +17,7 @@ import java.io.File
 import java.io.FileReader
 import java.io.IOException
 import java.nio.file.Path
+import java.util.*
 
 
 class GoogleSheetProvider(private val clientSecretFilePath: Path) {
@@ -144,11 +145,14 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
 
         return object : IndexedIterator<List<Any?>> {
 
+            val bufferSize: Int = 300
+
             override fun incIndex() {
                 rowIndex++
             }
 
             var values: List<Any?> = listOf()
+            val bufferedValues: LinkedList<List<Any?>> = LinkedList()
 
             var rowIndex: Int = 1
             override fun hasNext(): Boolean {
@@ -159,13 +163,20 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
                         rowIndex++
                         continue
                     }
-                    values = read(spreadsheetId, tabName, rowIndex)
+                    values = readRow()
                     if (values.isEmpty()) {
                         return false
                     }
                     run = !filter.postReadApply(rowIndex, values)
                 } while (run)
                 return true
+            }
+
+            private fun readRow(): List<Any?>{
+                if (bufferedValues.isEmpty()) {
+                    bufferedValues.addAll(read(spreadsheetId, tabName, "A$rowIndex:O${rowIndex * bufferSize}"))
+                }
+                return if (!bufferedValues.isEmpty()) bufferedValues.poll() else emptyList()
             }
 
             override fun next(): List<Any?> {
@@ -183,7 +194,7 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
                     rangeReadMapper: RangeReadMapper<T>): IndexedIterator<T> {
 
 
-        val innerIterator = readAll(spreadsheetId, tabName, object: IndexedReadFilter<List<Any?>> {})
+        val innerIterator = readAll(spreadsheetId, tabName, object : IndexedReadFilter<List<Any?>> {})
 
         return object : IndexedIterator<T> {
 
@@ -197,7 +208,7 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
                 var result = false
                 do {
                     result = !filter.preReadApply(index())
-                    if (result)  {
+                    if (result) {
                         incIndex()
                         continue
                     }
@@ -214,7 +225,7 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
 
 
             override fun next(): T {
-               return mapped!!
+                return mapped!!
             }
 
             override fun index(): Int {
@@ -240,7 +251,7 @@ class GoogleSheetProvider(private val clientSecretFilePath: Path) {
         }
     }
 
-    interface IndexedIterator<T>: Iterator<T> {
+    interface IndexedIterator<T> : Iterator<T> {
         fun index(): Int
 
         fun incIndex()

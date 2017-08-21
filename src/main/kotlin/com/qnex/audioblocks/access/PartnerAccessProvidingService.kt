@@ -16,12 +16,12 @@ class PartnerAccessProvidingService(private val config: PartnerAccessProvidingCo
     private val simpleDateFormat = SimpleDateFormat(datePattern)
 
     fun provideAccess(index: Int, partnerInfo: PartnerInfo) {
-        audioblocksClient.sendEmail(partnerInfo)
+//        audioblocksClient.sendEmail(partnerInfo)
 
         googleSheetProvider.update(config.spreadsheetId, config.spreadsheetTabName, index, object : RangeWriteMapper<String> {
 
             override fun apply(value: String): List<Any?> {
-                return listOf(null, null, null, value)
+                return listOf(null, null, null, null,  value)
             }
 
         }, simpleDateFormat.format(Date()))

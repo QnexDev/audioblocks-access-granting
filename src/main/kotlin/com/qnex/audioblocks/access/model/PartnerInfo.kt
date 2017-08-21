@@ -4,4 +4,4 @@ import java.util.*
 
 
 
-data class PartnerInfo(val name: String, val lastName: String, val email: String, val accessDate: Date?, val invitationDate: Date?)
+data class PartnerInfo(val name: String?, val lastName: String?, val email: String?, val accessDate: Date?, val invitationDate: Date?)

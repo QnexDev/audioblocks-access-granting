@@ -66,40 +66,50 @@ object AppRunner {
             val providingService =
                     PartnerAccessProvidingService(accessProvidingConfig, googleSheetProvider, audioblocksClient, runConfig.datePattern)
 
-            googleSheetProvider.readAll(spreadsheetId, spreadsheetTabName,
+            val indexedIterator = googleSheetProvider.readAll(spreadsheetId, spreadsheetTabName,
                     filter = object : GoogleSheetProvider.IndexedReadFilter<ParsedRowData> {
 
                         override fun preReadApply(index: Int): Boolean {
-                           return index > 1
+                            return index > 1
                         }
 
                         override fun postReadApply(index: Int, model: ParsedRowData): Boolean {
-                            println("Index: $index, model: $model")
-                            return model.adminName == runConfig.adminName && model.partnerInfo.accessDate == null
-                                    && model.partnerInfo.invitationDate != null
+                            val filterResult = (model.adminName == runConfig.adminName && model.partnerInfo.accessDate == null
+                                    && model.partnerInfo.invitationDate != null)
+                            println("Filter result: $filterResult Index: $index, model: $model")
+                            return filterResult
                         }
                     },
 
-                    rangeReadMapper = object: RangeReadMapper<ParsedRowData> {
+                    rangeReadMapper = object : RangeReadMapper<ParsedRowData> {
                         override fun apply(values: List<Any?>): ParsedRowData {
-                            return ParsedRowData(PartnerInfo(values[1] as String, values[2] as String, values[0] as String,
-                                    parseDate(values[4]), parseDate(values[5])), values[3] as String)
+                            val accessDate = parseDate(resolveArg(values, 4))
+                            val invitationDate = parseDate(resolveArg(values, 5))
+                            return ParsedRowData(
+                                    PartnerInfo(
+                                            resolveArg(values, 1),
+                                            resolveArg(values, 2),
+                                            resolveArg(values, 0),
+                                            accessDate, invitationDate), resolveArg(values, 3))
                         }
 
-                        private fun parseDate(value:Any?): Date? {
-                            val accessDateRaw =  value as String?
+                        private fun resolveArg(values: List<Any?>, index: Int) =
+                                if (values.size >= index + 1) values[index] as String else null
+
+                        private fun parseDate(value: String?): Date? {
+                            if (value == null) {
+                                return null
+                            }
+                            val accessDateRaw = value as String
                             val accessDate = if (accessDateRaw != "") dateFormat.parse(accessDateRaw) else null
                             return accessDate
                         }
                     })
 
-                    .asSequence()
-                    .forEachIndexed { index, (partnerInfo) ->
-                        run {
-                            providingService.provideAccess(index, partnerInfo)
-                            pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
-                        }
-                    }
+            indexedIterator.forEach { (partnerInfo) ->
+                providingService.provideAccess(indexedIterator.index(), partnerInfo)
+                pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
+            }
         }
 
     }
