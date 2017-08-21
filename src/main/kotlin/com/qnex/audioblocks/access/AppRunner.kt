@@ -8,8 +8,10 @@ import com.qnex.audioblocks.access.model.RunConfig
 import com.qnex.audioblocks.access.sheet.GoogleSheetProvider
 import com.qnex.audioblocks.access.sheet.RangeReadMapper
 import org.apache.http.impl.client.HttpClients
+import sun.util.resources.LocaleData
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.*
 
 
@@ -72,19 +74,12 @@ object AppRunner {
                         override fun preReadApply(index: Int): Boolean {
                             return index > 1
                         }
-
-                        override fun postReadApply(index: Int, model: ParsedRowData): Boolean {
-                            val filterResult = (model.adminName == runConfig.adminName && model.partnerInfo.accessDate == null
-                                    && model.partnerInfo.invitationDate != null)
-                            println("Filter result: $filterResult Index: $index, model: $model")
-                            return filterResult
-                        }
                     },
 
                     rangeReadMapper = object : RangeReadMapper<ParsedRowData> {
                         override fun apply(values: List<Any?>): ParsedRowData {
-                            val accessDate = parseDate(resolveArg(values, 4))
-                            val invitationDate = parseDate(resolveArg(values, 5))
+                            val accessDate = resolveDateArg(values, 4)
+                            val invitationDate = resolveDateArg(values, 5)
                             return ParsedRowData(
                                     PartnerInfo(
                                             resolveArg(values, 1),
@@ -96,20 +91,36 @@ object AppRunner {
                         private fun resolveArg(values: List<Any?>, index: Int) =
                                 if (values.size >= index + 1) values[index] as String else null
 
-                        private fun parseDate(value: String?): Date? {
-                            if (value == null) {
+                        private fun resolveDateArg(values: List<Any?>, index: Int): Date? {
+                            val resolvedValue = resolveArg(values, index)
+                            if (resolvedValue == null || resolvedValue.trim() == "") {
                                 return null
                             }
-                            val accessDateRaw = value as String
-                            val accessDate = if (accessDateRaw != "") dateFormat.parse(accessDateRaw) else null
-                            return accessDate
+                            if (resolvedValue.filter { it == '.' }.length == 1) {
+                                return parseDate(resolvedValue + ".${LocalDate.now().year}")
+                            }
+                            if (resolvedValue.filter { it == '.' }.isEmpty()) {
+                                return parseDate(resolvedValue + ".${LocalDate.now().month}" + ".${LocalDate.now().year}")
+                            }
+                            return parseDate(resolvedValue)
+                        }
+
+                        private fun parseDate(value: String?): Date? {
+                            return if (value == null || value.trim() == "") null else dateFormat.parse(value)
                         }
                     })
 
-            indexedIterator.forEach { (partnerInfo) ->
-                providingService.provideAccess(indexedIterator.index(), partnerInfo)
-                pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
-            }
+            indexedIterator.asSequence()
+                    .filter { parsedRowData ->
+                        val filterResult = (parsedRowData.adminName == runConfig.adminName &&
+                                parsedRowData.partnerInfo.accessDate == null
+                                && parsedRowData.partnerInfo.invitationDate != null)
+                        println("Filter result: $filterResult , model: $parsedRowData")
+                        filterResult
+                    }.forEach { (partnerInfo) ->
+                        providingService.provideAccess(indexedIterator.index(), partnerInfo)
+                        pause(random.between(runConfig.pauseTimeFrom, runConfig.pauseTimeTo).toLong())
+                    }
         }
 
     }
