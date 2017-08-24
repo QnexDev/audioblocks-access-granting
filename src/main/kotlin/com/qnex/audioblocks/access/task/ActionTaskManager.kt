@@ -1,5 +1,9 @@
 package com.qnex.audioblocks.access.task
 
+import javax.annotation.concurrent.NotThreadSafe
+
+
+@NotThreadSafe // TODO for now :)
 class ActionTaskManager(val actionTaskRegistry: ActionTaskRegistry) {
     private val startedTasks = hashSetOf<String>()
     private val stoppedTasks = hashSetOf<String>()
