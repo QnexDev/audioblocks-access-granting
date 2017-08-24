@@ -8,10 +8,10 @@ import com.qnex.audioblocks.access.sheet.RangeWriteMapper
 import java.text.SimpleDateFormat
 import java.util.*
 
-class PartnerAccessProvidingService(private val config: PartnerAccessProvidingConfig,
-                                    private val googleSheetProvider: GoogleSheetProvider,
-                                    private val audioblocksClient: AudioblocksAccessProvidingClient,
-                                    private val datePattern:String = "dd.MM.yyyy") {
+class PartnerAccessService(private val config: PartnerAccessProvidingConfig,
+                           private val googleSheetProvider: GoogleSheetProvider,
+                           private val audioblocksClient: AudioblocksAccessProvidingClient,
+                           private val datePattern:String = "dd.MM.yyyy") {
 
     private val simpleDateFormat = SimpleDateFormat(datePattern)
 

@@ -9,4 +9,5 @@ data class RunConfig(
         val spreadsheetId: String,
         val spreadsheetTabName: String,
         val datePattern: String,
-        val adminName: String)
+        val adminName: String,
+        val taskName: String)
