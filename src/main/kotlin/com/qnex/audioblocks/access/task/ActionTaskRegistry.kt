@@ -1,10 +1,10 @@
 package com.qnex.audioblocks.access.task
 
-class ActionTaskRegistry {
+class ActionTaskRegistry(tasks: List<ActionTask<*>>) {
 
     private val actionTasks = hashMapOf<String, ActionTask<*>>()
 
-    constructor(tasks: List<ActionTask<*>>) {
+    init {
         if (tasks.toSet().size == tasks.size) {
             throw IllegalArgumentException("Tasks list contains duplicates!")
         }
